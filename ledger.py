@@ -22,3 +22,6 @@ except coinbase.wallet.error.AuthenticationError as e:
 	print(e)
 	exit()
 print(coinbase.accounts)
+
+
+# BTCMarkets has one, but it doesn't look great - https://github.com/BTCMarkets/api-client-python
