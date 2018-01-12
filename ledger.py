@@ -3,6 +3,7 @@
 try:
 	import coinbase
 	import coinbase.wallet.client
+	# https://developers.coinbase.com/docs/wallet/guides/bitcoin-wallet
 except ImportError:
 	exit("Please install coinbase package")
 
