@@ -5,7 +5,7 @@ try:
 except ImportError:
     exit("Please install coinbase package")
 
-def get_coinbase_accounts(config, accounts):
+def get_coinbase(config, accounts):
     """ handle coinbase API calls
     config needs these values, all taken from coinbase. remember, 48 hour delay if you make changes to the API keys.
     [coinbase]

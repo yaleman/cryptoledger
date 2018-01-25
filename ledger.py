@@ -7,12 +7,17 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 
 if config['coinbase']:
-    from wallet_coinbase import get_coinbase_accounts
-    get_coinbase_accounts(config, accounts)
+    from wallet_coinbase import get_coinbase
+    get_coinbase(config, accounts)
 
 if config['btcmarkets']:
-    from btcmarkets import get_btcmarkets
+    from wallet_btcmarkets import get_btcmarkets
     get_btcmarkets(config, accounts)
+
+# broken currently
+#if config['cryptopia']:
+#    from wallet_cryptopia import get_cryptopia
+#    get_cryptopia(config, accounts)
 
 for currency in accounts:
     print(currency)
