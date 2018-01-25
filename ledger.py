@@ -9,7 +9,7 @@ except ImportError:
 
 import configparser
 
-
+accounts = {}
 config = configparser.ConfigParser()
 config.read('config.ini')
 
@@ -18,12 +18,25 @@ def get_coinbase_accounts(config=config):
 
 	try:
 		coinbase_accounts = coinbase_client.get_accounts()
+		#print(coinbase_accounts)
+		for account in coinbase_accounts['data']:
+			if float(account['balance']['amount']) != 0.0:
+				current_currency = account['balance']['currency']
+				current_balance = account['balance']['amount']
+				if current_currency not in accounts:
+					accounts[current_currency] = {}
+				accounts[current_currency]['coinbase'] = current_balance
+				#print("{}\t{}\t(${} {})".format(current_currency, current_balance, account['native_balance']['amount'], account['native_balance']['currency']))
 	except coinbase.wallet.error.AuthenticationError as e:
 		print("Authentication error contacting coinbase API, error:")
 		print(e)
 		exit()
-	print(coinbase_accounts)
+
 
 #print( config['btcmarkets']['api_key_private'])
 # BTCMarkets has one, but it doesn't look great - https://github.com/BTCMarkets/api-client-python
 get_coinbase_accounts()
+for currency in accounts:
+	print(currency)
+	for wallet in accounts[currency]:
+		print(wallet, accounts[currency][wallet])
