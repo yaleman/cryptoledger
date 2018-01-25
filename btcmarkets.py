@@ -103,3 +103,22 @@ class BTCMarkets:
     def get_market_trades(self,currency_in,currency_out):
 
         return get_request(self.key, self.secret, '/market/%s/%s/trades' % (currency_in,currency_out))
+
+def get_btcmarkets(config, accounts):
+    """ handle the BTCMarkets API calls 
+    config needs:
+    [btcmarkets]
+    api_key_public = blah
+    api_key_private = blah
+    """
+    # BTCMarkets has one, but it doesn't look great - https://github.com/BTCMarkets/api-client-python
+    client = BTCMarkets(config['btcmarkets']['api_key_public'],config['btcmarkets']['api_key_private'])
+    #print (client.get_market_tick('ETH','AUD'))
+    #print(client.trade_history('ETH', 'AUD', 10, 1))
+    #print("BTC Account Balances")
+    balances = client.account_balance()
+    for balance in balances:
+        if balance['balance'] != 0:
+            if balance['currency'] not in accounts:
+                accounts[balance['currency']] = {}
+            accounts[balance['currency']]['BTCMarkets'] = float(balance['balance'])/100000000
