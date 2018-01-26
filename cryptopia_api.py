@@ -1,184 +1,207 @@
-""" This is a wrapper for Cryptopia.co.nz API """
-
-
+# Private API Class for cryptopia.co.nz
+# grabbed from https://github.com/doubleelforbes/CTPrivAPI/blob/master/privcapi.py
 import json
-import time
-import hmac
-import hashlib
 import base64
-import requests
+import hashlib
+import hmac
+from urllib.parse import quote_plus
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+import time
 
-# using requests.compat to wrap urlparse (python cross compatibility over 9000!!!)
-from requests.compat import quote_plus
 
-class Api(object):
-    """ Represents a wrapper for cryptopia API """
+class PrivCApi:
+    def __init__(self, apipublickey, apisecretkey):
+        self.iNonce = 0
+        self.PublicKey = apipublickey
+        self.SecretKey = apisecretkey
+        self.BaseURL = "https://www.cryptopia.co.nz/Api"
 
-    def __init__(self, key, secret):
-        self.key = key
-        self.secret = secret
-        self.public = ['GetCurrencies', 'GetTradePairs', 'GetMarkets',
-                       'GetMarket', 'GetMarketHistory', 'GetMarketOrders', 'GetMarketOrderGroups']
-        self.private = ['GetBalance', 'GetDepositAddress', 'GetOpenOrders',
-                        'GetTradeHistory', 'GetTransactions', 'SubmitTrade',
-                        'CancelTrade', 'SubmitTip', 'SubmitWithdraw', 'SubmitTransfer']
+    # Auto increment the nonce, stick it to a timestamp and return the string
+    def __noncifier__(self):
+        self.iNonce = self.iNonce + 1
+        noncehash = str(self.iNonce) + "." + str(int(time.time()))
+        return noncehash
 
-    def api_query(self, feature_requested, get_parameters=None, post_parameters=None):
-        """ Performs a generic api request """
-        time.sleep(1)
-        if feature_requested in self.private:
-            url = "https://www.cryptopia.co.nz/Api/" + feature_requested
-            if post_parameters:
-                post_data = json.dumps(post_parameters)
-                headers = self.secure_headers(url=url, post_data=post_data)
-                req = requests.post(url, data=post_data, headers=headers)
-            else:
-                headers = self.secure_headers(url=url)
-                req = requests.post(url, headers=headers)
-            
-            if req.status_code != 200:
-                try:
-                    req.raise_for_status()
-                except requests.exceptions.RequestException as ex:
-                    return None, "Status Code : " + str(ex)
-            req = req.json()
-            if 'Success' in req and req['Success'] is True:
-                result = req['Data']
-                error = None
-            else:
-                result = None
-                error = req['Error'] if 'Error' in req else 'Unknown Error'
-            return (result, error)
-        elif feature_requested in self.public:
-            url = "https://www.cryptopia.co.nz/Api/" + feature_requested + "/" + \
-                  ('/'.join(i for i in get_parameters.values()
-                           ) if get_parameters is not None else "")
-            req = requests.get(url, params=get_parameters)
-            if req.status_code != 200:
-                try:
-                    req.raise_for_status()
-                except requests.exceptions.RequestException as ex:
-                    return None, "Status Code : " + str(ex)
-            req = req.json()
-            if 'Success' in req and req['Success'] is True:
-                result = req['Data']
-                error = None
-            else:
-                result = None
-                error = req['Error'] if 'Error' in req else 'Unknown Error'
-            return (result, error)
+    # Return all or one specific balance.
+    def getbalance(self, currency=None):
+        # Set up JSON object for parameters.
+        params = {}
+        # Has a coin been specified?
+        if not currency:
+            params["Currency"] = ""
         else:
-            return None, "Unknown feature"
+            curkey = self.currencykeyer(currency)
+            params[curkey] = currency
+        return self.makejsonquery("/GetBalance", params)
 
-    def get_currencies(self):
-        """ Gets all the currencies """
-        return self.api_query(feature_requested='GetCurrencies')
+    # Return / Generate a deposit address
+    def getdepositaddress(self, currency):
+        params = {}
+        curkey = self.currencykeyer(currency)
+        params[curkey] = currency
+        return self.makejsonquery("/GetDepositAddress", params)
 
-    def get_tradepairs(self):
-        """ GEts all the trade pairs """
-        return self.api_query(feature_requested='GetTradePairs')
-
-    def get_markets(self):
-        """ Gets data for all markets """
-        return self.api_query(feature_requested='GetMarkets')
-
-    def get_market(self, market):
-        """ Gets market data """
-        return self.api_query(feature_requested='GetMarket',
-                              get_parameters={'market': market})
-
-    def get_history(self, market):
-        """ Gets the full order history for the market (all users) """
-        return self.api_query(feature_requested='GetMarketHistory',
-                              get_parameters={'market': market})
-
-    def get_orders(self, market):
-        """ Gets the user history for the specified market """
-        return self.api_query(feature_requested='GetMarketOrders',
-                              get_parameters={'market': market})
-
-    def get_ordergroups(self, markets):
-        """ Gets the order groups for the specified market """
-        return self.api_query(feature_requested='GetMarketOrderGroups',
-                              get_parameters={'markets': markets})
-
-    def get_balance(self, currency):
-        """ Gets the balance of the user in the specified currency """
-        result, error = self.api_query(feature_requested='GetBalance',
-                                       post_parameters={'Currency': currency})
-        if error is None:
-            result = result[0]
-        return (result, error)
-
-    def get_openorders(self, market):
-        """ Gets the open order for the user in the specified market """
-        return self.api_query(feature_requested='GetOpenOrders',
-                              post_parameters={'Market': market})
-
-    def get_deposit_address(self, currency):
-        """ Gets the deposit address for the specified currency """
-        return self.api_query(feature_requested='GetDepositAddress',
-                              post_parameters={'Currency': currency})
-
-    def get_tradehistory(self, market):
-        """ Gets the trade history for a market """
-        return self.api_query(feature_requested='GetTradeHistory',
-                              post_parameters={'Market': market})
-
-    def get_transactions(self, transaction_type):
-        """ Gets all transactions for a user """
-        return self.api_query(feature_requested='GetTransactions',
-                              post_parameters={'Type': transaction_type})
-
-    def submit_trade(self, market, trade_type, rate, amount):
-        """ Submits a trade """
-        return self.api_query(feature_requested='SubmitTrade',
-                              post_parameters={'Market': market,
-                                               'Type': trade_type,
-                                               'Rate': rate,
-                                               'Amount': amount})
-
-    def cancel_trade(self, trade_type, order_id, tradepair_id):
-        """ Cancels an active trade """
-        return self.api_query(feature_requested='CancelTrade',
-                              post_parameters={'Type': trade_type,
-                                               'OrderID': order_id,
-                                               'TradePairID': tradepair_id})
-
-    def submit_tip(self, currency, active_users, amount):
-        """ Submits a tip """
-        return self.api_query(feature_requested='SubmitTip',
-                              post_parameters={'Currency': currency,
-                                               'ActiveUsers': active_users,
-                                               'Amount': amount})
-
-    def submit_withdraw(self, currency, address, amount):
-        """ Submits a withdraw request """
-        return self.api_query(feature_requested='SubmitWithdraw',
-                              post_parameters={'Currency': currency,
-                                               'Address': address,
-                                               'Amount': amount})
-
-    def submit_transfer(self, currency, username, amount):
-        """ Submits a transfer """
-        return self.api_query(feature_requested='SubmitTransfer',
-                              post_parameters={'Currency': currency,
-                                               'Username': username,
-                                               'Amount': amount})
-
-    def secure_headers(self, url, post_data=None):
-        """ Creates secure header for cryptopia private api. """
-        nonce = str(int(time.time()))
-        md5 = hashlib.md5()
-        if post_data:
-            md5.update(post_data.encode('utf-8'))
-            rcb64 = base64.b64encode(md5.digest()).decode('utf-8')
+    # Return Open order list
+    def getopenorders(self, market=None, count="100"):
+        params = {}
+        if not market:
+            params["Market"] = ""
         else:
-            rcb64 = ""
-        
-        signature = self.key + "POST" + quote_plus(url).lower() + nonce + rcb64
-        hmacsignature = base64.b64encode(hmac.new(base64.b64decode(str(self.secret.strip())),
-                                                  signature.encode('utf-8'),
-                                                  hashlib.sha256).digest())
-        header_value = "amx " + self.key + ":" + hmacsignature.decode('utf-8') + ":" + nonce
-        return {'Authorization': header_value, 'Content-Type': 'application/json; charset=utf-8'}
+            markey = self.marketkeyer(market)
+            params[markey] = market
+        # Either pass the overridden parameter or use the default of 100.
+        params["Count"] = str(count)
+        return self.makejsonquery("/GetOpenOrders", params)
+
+    # Return Trade History list.
+    def gettradehistory(self, market=None, count="100"):
+        params = {}
+        if not market:
+            params["Market"] = ""
+        else:
+            markey = self.marketkeyer(market)
+            params[markey] = market
+        # Either pass the overridden parameter or use the default of 100.
+        params["Count"] = str(count)
+        return self.makejsonquery("/GetTradeHistory", params)
+
+    # Returns deposit and withdrawal history
+    def gettransactions(self, ttype, count="100"):
+        params = {}
+        params["Type"] = ttype
+        params["Count"] = count
+        return self.makejsonquery("/GetTransactions", params)
+
+    # Submits a live trade
+    def submittrade(self, market, ttype, rate, amount):
+        params = {}
+        markey = self.marketkeyer(market)
+        params[markey] = market
+        params["Type"] = ttype
+        params["Rate"] = rate
+        params["Amount"] = amount
+        return self.makejsonquery("/SubmitTrade", params)
+
+    # Cancels a live trade.
+    def canceltrade(self, ttype, cancelid=None):
+        params = {}
+        params["Type"] = ttype
+        if ttype == "All":
+            # No further Parameters, cancel All!
+            pass
+        elif ttype == "Trade":
+            # It's a single cancel, ID = OrderID
+            if not cancelid:
+                return "ERROR! - Specific Order Cancel requested without Order ID."
+            else:
+                params["OrderId"] = str(cancelid)
+        elif ttype == "TradePair":
+            # It's a broad TradePair Cancel, ID = TradePairID
+            if not cancelid:
+                return "ERROR! - Broad TradePair Cancel requested without TradePair ID."
+            else:
+                params["TradePairId"] = str(cancelid)
+        else:
+            return "ERROR! - Invalid Cancel Type: (" + ttype + ").  Please provide (All, Trade or TradePair)"
+        return self.makejsonquery("/CancelTrade", params)
+
+    # Tip the trollbox
+    def submittip(self, currency, amount, activeusers):
+        params = {}
+        curkey = self.currencykeyer(currency)
+        params[curkey] = currency
+        params["Amount"] = amount
+        params["ActiveUsers"] = activeusers
+        return self.makejsonquery("/SubmitTip", params)
+
+    # Withdraw any currency
+    def submitwithdraw(self, currency, address, amount, paymentid=None):
+        params = {}
+        curkey = self.currencykeyer(currency)
+        params[curkey] = currency
+        params["Address"] = address
+        params["Amount"] = amount
+        if paymentid:
+            params["PaymentId"] = paymentid
+        return self.makejsonquery("/SubmitWithdraw", params)
+
+    # Transfer any currency to another Cryptopia user.
+    def submittransfer(self, currency, username, amount):
+        params = {}
+        curkey = self.currencykeyer(currency)
+        params[curkey] = currency
+        params["Username"] = username
+        params["Amount"] = amount
+        return self.makejsonquery("/SubmitTransfer", params)
+
+    # Takes a market input and returns whether it's a Market name or a TradePairID
+    def marketkeyer(self, market):
+        try:
+            # Is it an int?
+            # Worst case for future proofing I can imagine is that a 1337/42 market emerges and somehow this returns,
+            # 31.83333333333333 !!!!! :|
+            val = int(market)
+            return "TradePairID"
+        except ValueError:
+            # Character containing, Definitely a market.  As I hinted above any '/' should really always trigger this
+            # clause.......... I hope!
+            return "Market"
+
+    # Takes a currency input and returns whether it's a Currency name or a CurrencyID
+    def currencykeyer(self, currency):
+        # List of numerical symbol names, add to this list as currencies emerge with these symbols.
+        # In future I intend to make this Public and set it when the wallets are fetched.
+        lstnumsymstr = [42, 300, 611, 808, 888, 1337]
+        try:
+            # Is it an int?
+            val = int(currency)
+            # Is it a sneaky currency symbol which is in fact an int ?
+            if val in lstnumsymstr:
+                # It's actually a numerical symbol string
+                return "Currency"
+            else:
+                # OK! Definitely a currency ID
+                return "CurrencyId"
+        except ValueError:
+            # Contains characters! Definitely a currency string.
+            return "Currency"
+
+    # Takes subdir (API Function) & parameter dict. Returns error or data.
+    def makejsonquery(self, command, params):
+        # Append the command to the URL
+        uri = self.BaseURL + command
+        # Grab the keys, probably don't need to str() them.
+        strsecret = str(self.SecretKey)
+        strpublic = str(self.PublicKey)
+        # Generate and grab the nonce
+        tmpnonce = self.__noncifier__()
+        # Set up MD5 object, encode params to bytes, MD5 hash
+        md5params = hashlib.md5()
+        encparams = json.dumps(params).encode("UTF-8")
+        md5params.update(encparams)
+        # Base64 the MD5 Hash & Return the bytes to a string, then assemble the request string
+        b64request = base64.b64encode(md5params.digest())
+        str64request = b64request.decode("UTF-8")
+        reqstr = strpublic + "POST" + quote_plus(uri).lower() + tmpnonce + str64request
+        # Sign the request string with the private key
+        try:
+            hmacraw = hmac.new(base64.b64decode(strsecret), reqstr.encode("UTF-8"), hashlib.sha256).digest()
+        except:
+            return "HMAC-SHA256 Signature failed! Check Private Key."
+        # Base64 the signed parameters, assemble the header string and dict.
+        hmacreq = base64.b64encode(hmacraw)
+        header_value = "amx " + strpublic + ":" + hmacreq.decode("UTF-8") + ":" + tmpnonce
+        headers = {"Authorization": header_value, "Content-Type": "application/json; charset=utf-8"}
+        # Pack into HTTP request and try to open the URL.
+        rapi = Request(uri, data=encparams, headers=headers, method="POST")
+        try:
+            response = urlopen(rapi).read().decode("UTF-8-SIG")
+        except HTTPError as e:
+            return "HTTP ERROR! : " + e.reason
+        # If we got a response it's a json object, Success is bool and either Data or Error strings are returned.
+        jsondata = json.loads(response)
+        if jsondata.get("Success"):
+            return jsondata.get("Data")
+        else:
+            return "API ERROR! : " + jsondata.get("Error")

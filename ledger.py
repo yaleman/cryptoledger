@@ -14,10 +14,9 @@ if config['btcmarkets']:
     from wallet_btcmarkets import get_btcmarkets
     get_btcmarkets(config, accounts)
 
-# broken currently
-#if config['cryptopia']:
-#    from wallet_cryptopia import get_cryptopia
-#    get_cryptopia(config, accounts)
+if config['cryptopia']:
+    from wallet_cryptopia import get_cryptopia
+    get_cryptopia(config, accounts)
 
 for currency in accounts:
     print(currency)

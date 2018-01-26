@@ -2,10 +2,14 @@ import requests
 
 #https://www.cryptopia.co.nz/api/GetBalance
 
-from cryptopia_api import Api
+from cryptopia_api import PrivCApi
 
 def get_cryptopia(config, accounts):
-    print(config['cryptopia']['api_key'],config['cryptopia']['api_secret'])
-    api_wrapper = Api(config['cryptopia']['api_key'],config['cryptopia']['api_secret'])
+    api_wrapper = PrivCApi(config['cryptopia']['api_key'],config['cryptopia']['api_secret'])
 
-    print(api_wrapper.api_query(feature_requested='GetBalance'))
+    for balance in api_wrapper.getbalance():
+        if balance['Available'] != 0.0:
+            #print(balance)
+            if balance['Symbol'] not in accounts:
+                accounts[balance['Symbol']] = {}
+            accounts[balance['Symbol']]['cryptopia'] = balance['Total']
