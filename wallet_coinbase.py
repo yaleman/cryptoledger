@@ -3,7 +3,7 @@ try:
     import coinbase.wallet.client
 # https://developers.coinbase.com/docs/wallet/guides/bitcoin-wallet
 except ImportError:
-    exit("Please install coinbase package")
+    exit("Please install coinbase package: pip(3) install coinbase")
 
 def get_coinbase(config, accounts):
     """ handle coinbase API calls
