@@ -1,3 +1,5 @@
+⚠️ THIS IS ARCHIVED AND WILL NOT BE UPDATED ⚠️
+
 # CryptoLedger
 
 Pulls crypto balances from all over the place and tells you what you have.
